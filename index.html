@@ -119,6 +119,17 @@
         .stat-box { display: flex; flex-direction: column; align-items: center; line-height: 1; }
         .stat-label { font-size: 0.9rem; color: #666; }
         .error-stat { color: var(--wrong-color); }
+        
+        .reset-btn {
+            font-size: 0.8rem;
+            background: #e74c3c;
+            color: white;
+            border: 1px solid #000;
+            cursor: pointer;
+            padding: 0px 4px;
+            margin-left: 5px;
+            font-family: 'VT323', monospace;
+        }
 
         .step-indicators {
             display: flex;
@@ -129,7 +140,7 @@
             justify-content: center;
             flex-wrap: wrap;
             flex-shrink: 0;
-            min-height: 24px; /* Preserve space even if hidden */
+            min-height: 24px; 
         }
         
         .step-badge {
@@ -339,7 +350,7 @@
     <div id="game-container">
         <div class="title-bar">
             <span>System 6 Division</span>
-            <span class="version">v2.0</span>
+            <span class="version">v9.0</span>
         </div>
 
         <div id="modal-overlay">
@@ -381,7 +392,7 @@
                     <span id="error-display" class="error-stat">0</span>
                 </div>
                 <div class="stat-box">
-                    <span class="stat-label">SCORE</span>
+                    <span class="stat-label">SCORE <button class="reset-btn" onclick="game.resetScore()">RESET</button></span>
                     <span id="score-display">0</span>
                 </div>
             </div>
@@ -447,7 +458,11 @@ class LongDivisionGame {
             remainder: document.getElementById('badge-remainder')
         };
         
-        this.score = 0;
+        // Persistent Score Loading
+        const savedScore = localStorage.getItem('sys6_division_score');
+        this.score = savedScore ? parseInt(savedScore) : 0;
+        this.scoreDisplay.textContent = this.score;
+
         this.problemNumber = 1;
         this.level = 1;
         this.errors = 0;
@@ -468,6 +483,14 @@ class LongDivisionGame {
 
     init() {
         this.nextProblem();
+    }
+
+    resetScore() {
+        if(confirm("Reset score to 0?")) {
+            this.score = 0;
+            this.scoreDisplay.textContent = this.score;
+            localStorage.setItem('sys6_division_score', 0);
+        }
     }
 
     toggleKeypad() {
@@ -501,16 +524,12 @@ class LongDivisionGame {
     changeLevel() {
         this.level = parseInt(this.levelSelect.value);
         this.problemNumber = 1;
-        this.score = 0;
-        this.scoreDisplay.textContent = '0';
         this.nextProblem();
     }
 
     changeMode() {
         this.mode = this.modeSelect.value;
         this.problemNumber = 1;
-        this.score = 0;
-        this.scoreDisplay.textContent = '0';
         
         if (this.mode === 'CHALLENGE') {
             this.stepIndicators.style.visibility = 'hidden';
@@ -545,11 +564,9 @@ class LongDivisionGame {
         };
     }
 
-    // Pre-calculates the entire grid solution for Challenge Mode
     solveProblemInternal(problemData) {
         let solutionGrid = {};
         
-        // Setup initial state similar to game
         let state = {
             dividendIndex: 0,
             currentRemainder: 0,
@@ -557,7 +574,6 @@ class LongDivisionGame {
             currentRow: 2
         };
         
-        // Initial Grid Setup
         const setCell = (r, c, txt, type='') => {
             if(!solutionGrid[r]) solutionGrid[r] = {};
             solutionGrid[r][c] = { text: txt.toString(), type: type };
@@ -570,20 +586,17 @@ class LongDivisionGame {
             }
         };
 
-        // Static Problem setup
         setCell(1, 0, problemData.divisor, 'divisor');
         setCell(1, 1, '', 'bracket');
         for(let i=0; i<problemData.dividendStr.length; i++) {
             setCell(1, i+2, problemData.dividendStr[i], 'dividend');
         }
 
-        // Run Logic Loop
         let tempVal = 0;
         let idx = -1;
         const dStr = problemData.dividendStr;
         const divisor = problemData.divisor;
 
-        // Start
         while(tempVal < divisor && idx < dStr.length - 1) {
             idx++;
             tempVal = parseInt(dStr.substring(0, idx + 1));
@@ -594,28 +607,22 @@ class LongDivisionGame {
         let finished = false;
         
         while(!finished) {
-            // DIVIDE
             let quotientDigit = Math.floor(state.workingValue / divisor);
-            setCell(0, 2 + state.dividendIndex, quotientDigit, 'quotient'); // Solution Cell
+            setCell(0, 2 + state.dividendIndex, quotientDigit, 'quotient'); 
             
-            // MULTIPLY
             let product = divisor * quotientDigit;
-            writeNum(product, state.currentRow, 2 + state.dividendIndex, 'subtract-line'); // Solution Cells
+            writeNum(product, state.currentRow, 2 + state.dividendIndex, 'subtract-line'); 
             
-            // Minus Sign
             let pLen = product.toString().length;
             setCell(state.currentRow, (2 + state.dividendIndex) - (pLen - 1) - 1, '−', 'minus-sign');
             
             state.currentRow++;
             
-            // SUBTRACT
             let remainder = state.workingValue - product;
-            writeNum(remainder, state.currentRow, 2 + state.dividendIndex); // Solution Cells
+            writeNum(remainder, state.currentRow, 2 + state.dividendIndex); 
             state.currentRemainder = remainder;
             
-            // CHECK NEXT
             if (state.dividendIndex >= dStr.length - 1) {
-                // REMAINDER?
                 if (state.currentRemainder > 0) {
                     let rCol = dStr.length + 2;
                     setCell(0, rCol, 'R', 'remainder-label');
@@ -623,17 +630,18 @@ class LongDivisionGame {
                 }
                 finished = true;
             } else {
-                // BRING DOWN
                 state.dividendIndex++;
                 let broughtDigit = parseInt(dStr[state.dividendIndex]);
-                setCell(state.currentRow, 2 + state.dividendIndex, broughtDigit); // Solution Cell
+                setCell(state.currentRow, 2 + state.dividendIndex, broughtDigit); 
                 
-                // New Working Value
+                const arrowRow = state.currentRow - 1;
+                const arrowCol = 2 + state.dividendIndex;
+                if(!solutionGrid[arrowRow] || !solutionGrid[arrowRow][arrowCol]) {
+                     setCell(arrowRow, arrowCol, '↓', 'arrow-hint-static');
+                }
+
                 state.workingValue = parseInt(state.currentRemainder.toString() + broughtDigit.toString());
                 
-                // No row increment for bring down (it sits next to subtraction result usually)
-                // But in this logic, we brought it down to the same row as subtraction result
-                // Next multiply goes on NEW row
                 state.currentRow++;
             }
         }
@@ -648,7 +656,6 @@ class LongDivisionGame {
         this.errors = 0;
         this.errorDisplay.textContent = this.errors;
         
-        // Generate Solution for both modes (used for structure in Challenge, logic in Training)
         this.solutionGrid = this.solveProblemInternal(this.problemData);
         this.cols = this.problemData.dividendStr.length + 4;
         
@@ -673,7 +680,6 @@ class LongDivisionGame {
             currentRow: 2 
         };
 
-        // Initialize Training State Logic
         let tempVal = 0;
         let idx = -1;
         const dStr = this.problemData.dividendStr;
@@ -709,18 +715,15 @@ class LongDivisionGame {
             <button class="btn" onclick="game.skipProblem()">Skip</button>
         `;
         
-        this.challengeGrid = {}; // Reset user answers
+        this.challengeGrid = {}; 
         this.selectedCell = null;
         this.render();
     }
 
     checkWork() {
-        // Highlight errors but don't fix them
-        // Re-render will apply 'checked-error' class
         this.checked = true;
         this.render();
         
-        // Count errors for feedback (optional)
         let errorCount = 0;
         const gridRows = Object.keys(this.solutionGrid).map(Number);
         const maxRow = Math.max(...gridRows);
@@ -728,7 +731,6 @@ class LongDivisionGame {
             if(!this.solutionGrid[r]) continue;
             for(let c in this.solutionGrid[r]) {
                 const sol = this.solutionGrid[r][c];
-                // Only check interactive cells (digits)
                 const isDigit = /^[0-9]+$/.test(sol.text);
                 if(isDigit && sol.type !== 'divisor' && sol.type !== 'dividend') {
                     const key = `${r},${c}`;
@@ -757,8 +759,6 @@ class LongDivisionGame {
                 const sol = this.solutionGrid[r][c];
                 const isDigit = /^[0-9]+$/.test(sol.text);
                 
-                // We only care about user-fillable fields (quotient, products, subtraction results)
-                // Divisor and Dividend are static
                 if(isDigit && sol.type !== 'divisor' && sol.type !== 'dividend') {
                     const key = `${r},${c}`;
                     const userVal = this.challengeGrid[key];
@@ -772,9 +772,9 @@ class LongDivisionGame {
         if (allCorrect) {
             this.modalTitle.textContent = "CORRECT!";
             this.modalTitle.style.color = "#27ae60";
-            // Double points for challenge mode
             let points = (this.level * 20); 
             this.score += points;
+            localStorage.setItem('sys6_division_score', this.score);
             this.finalScoreMsg.textContent = `+${points} Points (Challenge Bonus!)`;
             this.scoreDisplay.textContent = this.score;
             document.getElementById('modal-overlay').style.display = 'flex';
@@ -783,22 +783,19 @@ class LongDivisionGame {
             this.modalTitle.style.color = "#e74c3c";
             this.finalScoreMsg.textContent = "Here is the correct solution.";
             
-            // Reveal Answers
             this.revealed = true;
             this.render();
             
-            // Wait a moment then show modal to move on? 
-            // Or just change buttons to "Next"
             this.controlsArea.innerHTML = `<button class="btn btn-submit" onclick="game.nextProblem()">Next Problem</button>`;
-            this.updateFeedback("Review the solution below.", 'wrong');
+            this.updateFeedback("Review the solution above.", 'wrong');
         }
     }
 
     handleChallengeInput(key) {
         if (!this.selectedCell || this.revealed) return;
         const mapKey = `${this.selectedCell.r},${this.selectedCell.c}`;
-        this.challengeGrid[mapKey] = key; // Overwrite single digit
-        this.checked = false; // Clear error highlights on edit
+        this.challengeGrid[mapKey] = key; 
+        this.checked = false; 
         this.render();
     }
 
@@ -807,8 +804,6 @@ class LongDivisionGame {
         this.selectedCell = {r, c};
         this.render();
     }
-
-    // ================= SHARED INPUT =================
 
     handleInput(key) {
         if (this.mode === 'CHALLENGE') {
@@ -832,12 +827,7 @@ class LongDivisionGame {
     }
 
     submitInput() {
-        if (this.mode === 'CHALLENGE') {
-            // Enter key acts like submit answer? Or maybe just moves selection?
-            // Let's make it submit answer for convenience
-            // this.submitAnswer(); 
-            // Actually, safer to let them click the button so they don't accidentally submit partial work
-        } else {
+        if (this.mode === 'TRAINING') {
             this.processTrainingInput();
         }
     }
@@ -847,8 +837,6 @@ class LongDivisionGame {
         this.updateFeedback("Skipped", 'wrong');
     }
 
-    // ================= TRAINING LOGIC =================
-    
     handleTrainingInput(key) {
         const expectedLen = this.getExpectedLength();
         if (expectedLen === 1) {
@@ -964,6 +952,7 @@ class LongDivisionGame {
         this.scoreDisplay.textContent = this.score;
         this.modalTitle.textContent = "DONE!";
         this.modalTitle.style.color = "#27ae60";
+        localStorage.setItem('sys6_division_score', this.score);
         document.getElementById('modal-overlay').style.display = 'flex';
     }
 
@@ -1002,8 +991,6 @@ class LongDivisionGame {
         this.updateFeedback(hint);
     }
 
-    // ================= RENDERING =================
-
     render() {
         this.stage.innerHTML = '';
         
@@ -1021,7 +1008,6 @@ class LongDivisionGame {
     }
 
     renderChallengeMode() {
-        // We use the PRE-CALCULATED Solution Grid to draw the board
         const gridRows = Object.keys(this.solutionGrid).map(Number);
         const maxRow = Math.max(...gridRows);
         
@@ -1031,45 +1017,41 @@ class LongDivisionGame {
         for (let r = 0; r <= maxRow; r++) {
             if (!this.solutionGrid[r]) continue;
             for (let c = 0; c < this.cols; c++) {
-                const solData = this.solutionGrid[r][c]; // Correct data
+                const solData = this.solutionGrid[r][c]; 
                 if (!solData) continue;
 
                 const cellDiv = document.createElement('div');
                 cellDiv.className = 'cell';
                 
-                // Styles
                 if (c === 1 && r === 1) cellDiv.classList.add('bracket-cell');
                 if (r === 1 && c >= 2 && c < this.problemData.dividendStr.length + 2) cellDiv.classList.add('dividend-cell');
                 if (solData.type.includes('subtract-line')) cellDiv.classList.add('subtract-line');
                 if (solData.type.includes('remainder-label')) cellDiv.classList.add('remainder-label');
                 if (solData.type.includes('minus-sign')) cellDiv.classList.add('minus-sign');
+                if (solData.type.includes('arrow-hint-static')) {
+                    cellDiv.classList.add('arrow-hint');
+                    cellDiv.textContent = '↓';
+                }
 
-                // Determine content logic
-                const isStatic = solData.type === 'divisor' || solData.type === 'dividend' || solData.type === 'minus-sign' || solData.type === 'remainder-label';
+                const isStatic = solData.type === 'divisor' || solData.type === 'dividend' || solData.type === 'minus-sign' || solData.type === 'remainder-label' || solData.type.includes('arrow-hint-static');
                 const isDigit = /^[0-9]+$/.test(solData.text);
 
                 if (isStatic || !isDigit) {
-                    // Static stuff always visible
-                    cellDiv.textContent = solData.text;
+                    if(!isDigit && !isStatic) { 
+                        // It's empty logic space
+                    } else {
+                        cellDiv.textContent = solData.text;
+                    }
                 } else {
-                    // INTERACTIVE BOX
                     cellDiv.classList.add('challenge-cell');
-                    cellDiv.style.gridRow = parseInt(r) + 1;
-                    cellDiv.style.gridColumn = parseInt(c) + 1;
-                    
-                    const mapKey = `${r},${c}`;
-                    
-                    // Interaction Handlers
                     cellDiv.onclick = () => this.selectCell(r, c);
                     
-                    // Selected State
+                    const mapKey = `${r},${c}`;
                     if (this.selectedCell && this.selectedCell.r == r && this.selectedCell.c == c) {
                         cellDiv.classList.add('selected');
                     }
                     
-                    // Content Logic
                     if (this.revealed) {
-                        // Show answer if revealed
                         const userVal = this.challengeGrid[mapKey];
                         if (userVal === solData.text) {
                             cellDiv.textContent = userVal;
@@ -1079,13 +1061,10 @@ class LongDivisionGame {
                             cellDiv.classList.add('revealed');
                         }
                     } else {
-                        // Show user input
                         const userVal = this.challengeGrid[mapKey];
                         if (userVal) {
                             cellDiv.textContent = userVal;
                             cellDiv.classList.add('user-filled');
-                            
-                            // Check Work Error logic
                             if (this.checked && userVal !== solData.text) {
                                 cellDiv.classList.add('checked-error');
                             }
@@ -1093,7 +1072,6 @@ class LongDivisionGame {
                     }
                 }
                 
-                // Positioning
                 cellDiv.style.gridRow = parseInt(r) + 1;
                 cellDiv.style.gridColumn = parseInt(c) + 1;
                 
@@ -1109,7 +1087,6 @@ class LongDivisionGame {
         this.stage.style.gridTemplateColumns = `repeat(${this.cols}, var(--grid-cell-size))`;
         this.stage.style.gridTemplateRows = `repeat(${maxRow + 1}, 40px)`;
 
-        // 1. Static Cells
         for (let r = 0; r <= maxRow; r++) {
             for (let c = 0; c < this.cols; c++) {
                 const cellData = this.grid[r] && this.grid[r][c];
@@ -1129,7 +1106,6 @@ class LongDivisionGame {
             }
         }
 
-        // 2. Logic Input
         let targetRow = 0;
         let targetColEnd = 0;
         let expectedLength = this.getExpectedLength();
